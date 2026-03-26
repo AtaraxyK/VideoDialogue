@@ -1,9 +1,9 @@
 
 import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.0/+esm';
-import { FFmpeg } from './vendor/ffmpeg/index.js?v=20260326b';
-import { fetchFile } from './vendor/ffmpeg-util/index.js?v=20260326b';
+import { FFmpeg } from './vendor/ffmpeg/index.js';
+import { fetchFile } from './vendor/ffmpeg-util/index.js';
 
-const APP_VERSION = '0.3.0-vendor-ready';
+const APP_VERSION = '0.3.0-vendor-ready 1';
 const APP_BUILD_TIME = '2026-03-26 00:00 UTC';
 const APP_NOTES = 'FFmpeg same-origin 대응 준비판';
 
@@ -320,10 +320,8 @@ async function ensureFfmpeg() {
   const baseURL = `${location.origin}${location.pathname.replace(/[^/]*$/, '')}vendor/ffmpeg-core`;
 
   await ffmpeg.load({
-    classWorkerURL: './vendor/ffmpeg/worker.js?v=20260326b',
-    coreURL: `${baseURL}/ffmpeg-core.js?v=20260326b`,
-    wasmURL: `${baseURL}/ffmpeg-core.wasm?v=20260326b`,
-    workerURL: `${baseURL}/ffmpeg-core.worker.js?v=20260326b`,
+  coreURL: './vendor/ffmpeg-core/ffmpeg-core.js',
+  wasmURL: './vendor/ffmpeg-core/ffmpeg-core.wasm',
   });
 
   state.ffmpeg = ffmpeg;
