@@ -1,6 +1,6 @@
 import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.0/+esm';
 import { FFmpeg } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js';
-import { fetchFile } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/esm/index.js';
+import { fetchFile, toBlobURL } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/esm/index.js';
 
 const STORAGE_KEYS = {
   language: 'transcript.language',
@@ -289,16 +289,31 @@ function formatTimestamp(seconds) {
 
 async function ensureFfmpeg() {
   if (state.ffmpeg) return state.ffmpeg;
+
   setStatus('오디오 추출 엔진 로딩 중');
+  log('FFmpeg 엔진 로딩 시작');
+
   const ffmpeg = new FFmpeg();
   ffmpeg.on('progress', ({ progress }) => {
     setFileProgress(Math.max(1, Math.min(95, progress * 100)));
   });
+
+  const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm';
+
+  // GitHub Pages 같은 cross-origin 환경에서는 Worker 스크립트를 그대로 넘기면
+  // same-origin 제약에 걸릴 수 있으므로 blob URL로 바꿔서 로드합니다.
+  const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
+  const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
+  const workerURL = await toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, 'text/javascript');
+
   await ffmpeg.load({
-    coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js',
-    wasmURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm',
+    coreURL,
+    wasmURL,
+    workerURL,
   });
+
   state.ffmpeg = ffmpeg;
+  log('FFmpeg 엔진 로딩 완료');
   return ffmpeg;
 }
 

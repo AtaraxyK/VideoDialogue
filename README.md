@@ -46,3 +46,11 @@ http://localhost:8080
 
 실사용 단계에서는 이 브라우저 버전으로 UX를 검증한 뒤,
 대용량 처리는 서버형 Whisper/faster-whisper 또는 데스크톱 앱(Electron/Tauri)로 확장하는 것이 안전합니다.
+
+
+## GitHub Pages 배포 시 FFmpeg worker 오류 수정
+
+현재 버전은 `toBlobURL()` 방식으로 FFmpeg core/wasm/worker를 blob URL로 바꿔 로드하도록 수정되어 있습니다.
+이 방식은 `Worker()` 가 same-origin 또는 blob URL을 요구하는 브라우저 제약을 피하기 위한 것입니다.
+
+배포 후에도 브라우저 캐시 때문에 예전 `app.js` 가 남아 있으면 강력 새로고침(Ctrl+F5) 후 다시 확인해 주세요.
