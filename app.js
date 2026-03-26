@@ -1,11 +1,10 @@
-
 import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.0/+esm';
-import { FFmpeg } from './vendor/ffmpeg/index.js';
-import { fetchFile } from './vendor/ffmpeg-util/index.js';
+import { FFmpeg } from './vendor/ffmpeg/index.js?v=20260326c';
+import { fetchFile } from './vendor/ffmpeg-util/index.js?v=20260326c';
 
-const APP_VERSION = '0.3.0-vendor-ready 1';
-const APP_BUILD_TIME = '2026-03-26 00:00 UTC';
-const APP_NOTES = 'FFmpeg same-origin 대응 준비판';
+const APP_VERSION = '0.3.1-local-ffmpeg';
+const APP_BUILD_TIME = '2026-03-26 15:30 KST';
+const APP_NOTES = 'FFmpeg 로컬 vendor 강제 / 빌드표시 강화판';
 
 const STORAGE_KEYS = {
   language: 'transcript.language',
@@ -41,7 +40,7 @@ const LANGUAGE_OPTIONS = [
 ];
 
 const SUPPORTED_VIDEO_TYPES = [
-  'video/mp4', 'video/quicktime', 'video/x-matroska', 'video/webm', 'video/x-msvideo', 'video/mpeg'
+  'video/mp4', 'video/quicktime', 'video/x-matroska', 'video/webm', 'video/x-msvideo', 'video/mpeg',
 ];
 
 const state = {
@@ -54,6 +53,26 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
+function getAppBaseUrl() {
+  return new URL('./', import.meta.url);
+}
+
+function getAbsoluteUrl(relativePath) {
+  return new URL(relativePath, getAppBaseUrl()).href;
+}
+
+function ensureBuildMetaElement(id, parentSelector = 'body') {
+  let el = $(id);
+  if (el) return el;
+
+  const parent = document.querySelector(parentSelector) || document.body;
+  el = document.createElement('div');
+  el.id = id;
+  el.className = 'build-meta-auto';
+  parent.appendChild(el);
+  return el;
+}
+
 const screens = {
   upload: $('screen-upload'),
   config: $('screen-config'),
@@ -63,48 +82,63 @@ const screens = {
 
 function renderBuildMeta() {
   const text = `버전: ${APP_VERSION} / 빌드: ${APP_BUILD_TIME} / ${APP_NOTES}`;
-  const a = $('build-meta');
-  const b = $('footer-build-meta');
-  if (a) a.textContent = text;
-  if (b) b.textContent = text;
+  const a = ensureBuildMetaElement('build-meta', '#screen-upload');
+  const b = ensureBuildMetaElement('footer-build-meta', 'body');
+
+  a.textContent = text;
+  b.textContent = text;
+  document.title = `영상 음성 타임라인 추출기 - ${APP_VERSION}`;
 }
 
 function showScreen(name) {
   Object.values(screens).forEach((el) => {
+    if (!el) return;
     el.classList.add('hidden');
     el.classList.remove('active');
   });
-  screens[name].classList.remove('hidden');
-  screens[name].classList.add('active');
+
+  if (screens[name]) {
+    screens[name].classList.remove('hidden');
+    screens[name].classList.add('active');
+  }
 }
 
 function log(message) {
   const box = $('progress-log');
+  if (!box) return;
   const time = new Date().toLocaleTimeString();
   box.textContent += `[${time}] ${message}\n`;
   box.scrollTop = box.scrollHeight;
 }
 
 function setOverallProgress(percent) {
-  $('overall-progress').value = percent;
-  $('overall-progress-text').textContent = `${Math.round(percent)}%`;
+  const bar = $('overall-progress');
+  const text = $('overall-progress-text');
+  if (bar) bar.value = percent;
+  if (text) text.textContent = `${Math.round(percent)}%`;
 }
 
 function setFileProgress(percent) {
-  $('file-progress').value = percent;
-  $('file-progress-text').textContent = `${Math.round(percent)}%`;
+  const bar = $('file-progress');
+  const text = $('file-progress-text');
+  if (bar) bar.value = percent;
+  if (text) text.textContent = `${Math.round(percent)}%`;
 }
 
 function setStatus(text) {
-  $('progress-status').textContent = text;
+  const el = $('progress-status');
+  if (el) el.textContent = text;
 }
 
 function setCurrentFile(name) {
-  $('progress-file-name').textContent = name || '-';
+  const el = $('progress-file-name');
+  if (el) el.textContent = name || '-';
 }
 
 function updateFileList(targetId) {
   const container = $(targetId);
+  if (!container) return;
+
   if (!state.files.length) {
     container.className = 'simple-list empty';
     container.textContent = '선택된 파일이 없습니다.';
@@ -134,19 +168,24 @@ function formatBytes(bytes) {
 }
 
 function saveSimpleSettings() {
-  localStorage.setItem(STORAGE_KEYS.language, $('language-select').value || 'auto');
-  localStorage.setItem(STORAGE_KEYS.csv, $('csv-checkbox').checked ? '1' : '0');
+  const langEl = $('language-select');
+  const csvEl = $('csv-checkbox');
+  localStorage.setItem(STORAGE_KEYS.language, langEl?.value || 'auto');
+  localStorage.setItem(STORAGE_KEYS.csv, csvEl?.checked ? '1' : '0');
 }
 
 function loadSimpleSettings() {
   const lang = localStorage.getItem(STORAGE_KEYS.language) || 'auto';
   const csv = localStorage.getItem(STORAGE_KEYS.csv) === '1';
-  $('csv-checkbox').checked = csv;
+  const csvEl = $('csv-checkbox');
+  if (csvEl) csvEl.checked = csv;
   return { lang, csv };
 }
 
 function renderLanguageOptions(filter = '', selectedCode = 'auto') {
   const select = $('language-select');
+  if (!select) return;
+
   const q = filter.trim().toLowerCase();
   const items = LANGUAGE_OPTIONS.filter((lang) => {
     const display = `${lang.ko} ${lang.native} ${lang.code}`.toLowerCase();
@@ -209,8 +248,11 @@ async function restoreOutputHandle() {
       const perm = await handle.queryPermission({ mode: 'readwrite' });
       if (perm === 'granted' || perm === 'prompt') {
         state.outputDirHandle = handle;
-        $('output-folder-label').className = 'path-label';
-        $('output-folder-label').textContent = `이전 출력 폴더 사용 가능`;
+        const label = $('output-folder-label');
+        if (label) {
+          label.className = 'path-label';
+          label.textContent = '이전 출력 폴더 사용 가능';
+        }
       }
     }
   } catch (error) {
@@ -229,8 +271,7 @@ async function pickFilesViaPicker() {
       }],
       excludeAcceptAllOption: false,
     });
-    const files = await Promise.all(handles.map((h) => h.getFile()));
-    return files;
+    return await Promise.all(handles.map((h) => h.getFile()));
   }
 
   return await new Promise((resolve) => {
@@ -252,8 +293,12 @@ async function pickOutputFolder() {
   const handle = await window.showDirectoryPicker({ id: 'output-folder', mode: 'readwrite' });
   state.outputDirHandle = handle;
   await setHandle(HANDLE_KEYS.outputDir, handle);
-  $('output-folder-label').className = 'path-label';
-  $('output-folder-label').textContent = '출력 폴더 선택 완료';
+
+  const label = $('output-folder-label');
+  if (label) {
+    label.className = 'path-label';
+    label.textContent = '출력 폴더 선택 완료';
+  }
 }
 
 function normalizePickedFiles(files) {
@@ -274,7 +319,7 @@ async function acceptFiles(files) {
   updateFileList('config-file-list');
 
   const { lang } = loadSimpleSettings();
-  renderLanguageOptions($('language-search').value, lang);
+  renderLanguageOptions($('language-search')?.value || '', lang);
   await restoreOutputHandle();
   showScreen('config');
 }
@@ -300,6 +345,21 @@ function formatTimestamp(seconds) {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(millis).padStart(3, '0')}`;
 }
 
+async function checkLocalFfmpegFiles() {
+  const urls = [
+    getAbsoluteUrl('./vendor/ffmpeg/index.js?v=20260326c'),
+    getAbsoluteUrl('./vendor/ffmpeg/worker.js?v=20260326c'),
+    getAbsoluteUrl('./vendor/ffmpeg-core/ffmpeg-core.js?v=20260326c'),
+    getAbsoluteUrl('./vendor/ffmpeg-core/ffmpeg-core.wasm?v=20260326c'),
+  ];
+
+  for (const url of urls) {
+    const res = await fetch(url, { method: 'GET', cache: 'no-store' });
+    if (!res.ok) {
+      throw new Error(`로컬 FFmpeg 파일을 찾을 수 없습니다: ${url}`);
+    }
+  }
+}
 
 async function ensureFfmpeg() {
   if (state.ffmpeg) return state.ffmpeg;
@@ -308,20 +368,19 @@ async function ensureFfmpeg() {
   log('FFmpeg 엔진 로딩 시작');
   log(`앱 버전: ${APP_VERSION} / 빌드: ${APP_BUILD_TIME}`);
 
+  await checkLocalFfmpegFiles();
+  log(`FFmpeg index: ${getAbsoluteUrl('./vendor/ffmpeg/index.js')}`);
+  log(`FFmpeg worker: ${getAbsoluteUrl('./vendor/ffmpeg/worker.js')}`);
+  log(`FFmpeg core: ${getAbsoluteUrl('./vendor/ffmpeg-core/ffmpeg-core.js')}`);
+
   const ffmpeg = new FFmpeg();
   ffmpeg.on('progress', ({ progress }) => {
     setFileProgress(Math.max(1, Math.min(95, progress * 100)));
   });
 
-  // 중요:
-  // GitHub Pages 같은 환경에서는 Worker()가 same-origin 제약을 받습니다.
-  // 따라서 @ffmpeg/ffmpeg 패키지의 worker.js 와 @ffmpeg/core 파일들을
-  // 현재 사이트와 같은 origin에서 직접 서빙해야 합니다.
-  const baseURL = `${location.origin}${location.pathname.replace(/[^/]*$/, '')}vendor/ffmpeg-core`;
-
   await ffmpeg.load({
-  coreURL: './vendor/ffmpeg-core/ffmpeg-core.js',
-  wasmURL: './vendor/ffmpeg-core/ffmpeg-core.wasm',
+    coreURL: getAbsoluteUrl('./vendor/ffmpeg-core/ffmpeg-core.js?v=20260326c'),
+    wasmURL: getAbsoluteUrl('./vendor/ffmpeg-core/ffmpeg-core.wasm?v=20260326c'),
   });
 
   state.ffmpeg = ffmpeg;
@@ -329,43 +388,48 @@ async function ensureFfmpeg() {
   return ffmpeg;
 }
 
-
 async function ensureTranscriber() {
   if (state.transcriber) return state.transcriber;
+
   setStatus('Whisper 모델 준비 중');
   env.allowLocalModels = false;
   env.useBrowserCache = true;
+
   state.transcriber = await pipeline(
     'automatic-speech-recognition',
     'onnx-community/whisper-tiny_timestamped',
     {
       progress_callback: (info) => {
         if (info?.status === 'progress' || info?.status === 'progress_total') {
-          setFileProgress(Math.max(1, Math.min(95, info.progress || 0)));
-          setStatus(`모델 다운로드/준비 중 (${Math.round(info.progress || 0)}%)`);
+          const p = Number(info.progress || 0);
+          setFileProgress(Math.max(1, Math.min(95, p)));
+          setStatus(`모델 다운로드/준비 중 (${Math.round(p)}%)`);
         } else if (info?.status === 'ready') {
           setStatus('모델 준비 완료');
         }
       },
-    }
+    },
   );
+
   return state.transcriber;
+}
+
+async function safeDelete(ffmpeg, path) {
+  try { await ffmpeg.deleteFile(path); } catch (_) {}
 }
 
 async function extractMono16kWav(file) {
   const ffmpeg = await ensureFfmpeg();
   const inputName = `input_${crypto.randomUUID()}_${file.name}`;
   const outputName = `output_${crypto.randomUUID()}.wav`;
+
   await ffmpeg.writeFile(inputName, await fetchFile(file));
   await ffmpeg.exec(['-i', inputName, '-vn', '-ac', '1', '-ar', '16000', '-f', 'wav', outputName]);
+
   const data = await ffmpeg.readFile(outputName);
   await safeDelete(ffmpeg, inputName);
   await safeDelete(ffmpeg, outputName);
   return data;
-}
-
-async function safeDelete(ffmpeg, path) {
-  try { await ffmpeg.deleteFile(path); } catch (_) {}
 }
 
 function toBlobFromUint8(uint8, type = 'audio/wav') {
@@ -375,6 +439,7 @@ function toBlobFromUint8(uint8, type = 'audio/wav') {
 async function transcribeFile(file, languageCode) {
   setStatus('오디오 추출 중');
   setFileProgress(0);
+
   const wavData = await extractMono16kWav(file);
 
   setStatus('음성 인식 중');
@@ -405,18 +470,22 @@ function outputToRows(output) {
   if (!chunks.length && output?.text) {
     return [{ time: '00:00:00.000', text: output.text.trim() }];
   }
-  return chunks.map((chunk) => {
-    const ts = Array.isArray(chunk.timestamp) ? chunk.timestamp[0] ?? 0 : 0;
-    return {
-      time: formatTimestamp(ts),
-      text: String(chunk.text || '').trim(),
-    };
-  }).filter((row) => row.text);
+
+  return chunks
+    .map((chunk) => {
+      const ts = Array.isArray(chunk.timestamp) ? (chunk.timestamp[0] ?? 0) : 0;
+      return {
+        time: formatTimestamp(ts),
+        text: String(chunk.text || '').trim(),
+      };
+    })
+    .filter((row) => row.text);
 }
 
 function rowsToCsv(rows) {
   const header = ['time', 'text'];
   const lines = [header.join(',')];
+
   rows.forEach((row) => {
     const escaped = [row.time, row.text].map((value) => {
       const s = String(value ?? '');
@@ -424,6 +493,7 @@ function rowsToCsv(rows) {
     });
     lines.push(escaped.join(','));
   });
+
   return lines.join('\n');
 }
 
@@ -432,7 +502,10 @@ function rowsToXlsxBlob(rows) {
   const wb = window.XLSX.utils.book_new();
   window.XLSX.utils.book_append_sheet(wb, ws, 'Transcript');
   const array = window.XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  return new Blob([array], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+  return new Blob([array], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
 }
 
 async function saveResult(baseFileName, rows, saveCsv) {
@@ -443,12 +516,14 @@ async function saveResult(baseFileName, rows, saveCsv) {
 
   if (state.outputDirHandle) {
     let perm = 'prompt';
+
     if (typeof state.outputDirHandle.queryPermission === 'function') {
       perm = await state.outputDirHandle.queryPermission({ mode: 'readwrite' });
     }
     if (perm !== 'granted' && typeof state.outputDirHandle.requestPermission === 'function') {
       perm = await state.outputDirHandle.requestPermission({ mode: 'readwrite' });
     }
+
     if (perm === 'granted') {
       const fileHandle = await state.outputDirHandle.getFileHandle(fileName, { create: true });
       const writable = await fileHandle.createWritable();
@@ -470,19 +545,23 @@ async function saveResult(baseFileName, rows, saveCsv) {
 }
 
 async function runBatch() {
-  const languageCode = $('language-select').value || 'auto';
-  const saveCsv = $('csv-checkbox').checked;
+  const languageCode = $('language-select')?.value || 'auto';
+  const saveCsv = !!$('csv-checkbox')?.checked;
   saveSimpleSettings();
 
   lockConfigUi(true);
   showScreen('progress');
-  $('progress-log').textContent = '';
+
+  const logBox = $('progress-log');
+  if (logBox) logBox.textContent = '';
+
   setOverallProgress(0);
   setFileProgress(0);
 
   try {
     for (let i = 0; i < state.files.length; i += 1) {
       const file = state.files[i];
+
       setCurrentFile(file.name);
       setFileProgress(0);
       log(`처리 시작: ${file.name}`);
@@ -490,17 +569,19 @@ async function runBatch() {
       const output = await transcribeFile(file, languageCode);
       const rows = outputToRows(output);
       const mode = await saveResult(baseName(file.name), rows, saveCsv);
-      log(`저장 완료: ${baseName(file.name)} (${mode === 'folder' ? '선택 폴더 저장' : '다운로드'})`);
 
-      const overall = ((i + 1) / state.files.length) * 100;
-      setOverallProgress(overall);
+      log(`저장 완료: ${baseName(file.name)} (${mode === 'folder' ? '선택 폴더 저장' : '다운로드'})`);
+      setOverallProgress(((i + 1) / state.files.length) * 100);
     }
 
-    $('done-message').textContent = '모든 파일 작성이 완료되었습니다.';
+    const done = $('done-message');
+    if (done) done.textContent = '모든 파일 작성이 완료되었습니다.';
     showScreen('done');
   } catch (error) {
     console.error(error);
-    alert(`작업 중 오류가 발생했습니다.\n${error?.message || error}`);
+    alert(
+      `작업 중 오류가 발생했습니다.\n\n버전: ${APP_VERSION}\n빌드: ${APP_BUILD_TIME}\n\n${error?.message || error}`,
+    );
     showScreen('config');
   } finally {
     lockConfigUi(false);
@@ -511,7 +592,10 @@ function resetToUpload() {
   state.files = [];
   updateFileList('upload-file-list');
   updateFileList('config-file-list');
-  $('language-search').value = '';
+
+  const search = $('language-search');
+  if (search) search.value = '';
+
   const { lang } = loadSimpleSettings();
   renderLanguageOptions('', lang);
   showScreen('upload');
@@ -519,33 +603,37 @@ function resetToUpload() {
 
 function bindEvents() {
   const dropZone = $('drop-zone');
-  ['dragenter', 'dragover'].forEach((evt) => {
-    dropZone.addEventListener(evt, (e) => {
-      e.preventDefault();
-      dropZone.classList.add('dragover');
+  if (dropZone) {
+    ['dragenter', 'dragover'].forEach((evt) => {
+      dropZone.addEventListener(evt, (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+      });
     });
-  });
-  ['dragleave', 'drop'].forEach((evt) => {
-    dropZone.addEventListener(evt, (e) => {
-      e.preventDefault();
-      dropZone.classList.remove('dragover');
-    });
-  });
-  dropZone.addEventListener('drop', async (e) => {
-    const files = Array.from(e.dataTransfer?.files || []);
-    await acceptFiles(files);
-  });
 
-  $('btn-pick-files').addEventListener('click', async () => {
+    ['dragleave', 'drop'].forEach((evt) => {
+      dropZone.addEventListener(evt, (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+      });
+    });
+
+    dropZone.addEventListener('drop', async (e) => {
+      const files = Array.from(e.dataTransfer?.files || []);
+      await acceptFiles(files);
+    });
+  }
+
+  $('btn-pick-files')?.addEventListener('click', async () => {
     const files = await pickFilesViaPicker();
     await acceptFiles(files);
   });
 
-  $('btn-back').addEventListener('click', () => {
+  $('btn-back')?.addEventListener('click', () => {
     showScreen('upload');
   });
 
-  $('btn-pick-output').addEventListener('click', async () => {
+  $('btn-pick-output')?.addEventListener('click', async () => {
     try {
       await pickOutputFolder();
     } catch (error) {
@@ -554,7 +642,7 @@ function bindEvents() {
     }
   });
 
-  $('btn-start').addEventListener('click', async () => {
+  $('btn-start')?.addEventListener('click', async () => {
     if (!state.files.length) {
       alert('먼저 영상 파일을 선택해 주세요.');
       return;
@@ -562,12 +650,12 @@ function bindEvents() {
     await runBatch();
   });
 
-  $('language-search').addEventListener('input', (e) => {
-    const current = $('language-select').value || loadSimpleSettings().lang || 'auto';
+  $('language-search')?.addEventListener('input', (e) => {
+    const current = $('language-select')?.value || loadSimpleSettings().lang || 'auto';
     renderLanguageOptions(e.target.value, current);
   });
 
-  $('screen-done').addEventListener('click', () => {
+  $('screen-done')?.addEventListener('click', () => {
     resetToUpload();
   });
 }
@@ -575,16 +663,25 @@ function bindEvents() {
 async function init() {
   renderBuildMeta();
   loadSimpleSettings();
+
   const { lang } = loadSimpleSettings();
   renderLanguageOptions('', lang);
+
   updateFileList('upload-file-list');
   updateFileList('config-file-list');
   bindEvents();
-  const note = document.createElement('div');
-  note.className = 'error-note';
-  note.innerHTML = '중요: 이 버전은 FFmpeg worker same-origin 문제 대응용입니다. <code>vendor</code> 폴더에 FFmpeg 정적 파일을 같이 올려야 실제 동작합니다. 자세한 파일 목록은 README.md를 확인해 주세요.';
-  $('screen-upload').appendChild(note);
+
+  const uploadScreen = $('screen-upload');
+  if (uploadScreen) {
+    const note = document.createElement('div');
+    note.className = 'error-note';
+    note.innerHTML =
+      '중요: 이 버전은 로컬 vendor FFmpeg 파일을 강제로 사용합니다. 브라우저 캐시 때문에 예전 코드가 남아 있으면 강력 새로고침(Ctrl+F5) 후 다시 확인해 주세요.';
+    uploadScreen.appendChild(note);
+  }
+
   await restoreOutputHandle();
+  log(`초기화 완료 - ${APP_VERSION}`);
 }
 
 init();
