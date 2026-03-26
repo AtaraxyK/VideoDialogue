@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>영상 음성 타임라인 추출기</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <h1>영상 음성 타임라인 추출기</h1>
+      <p class="subtext">브라우저에서 영상 파일의 음성을 전사해 CSV 또는 XLSX로 저장합니다.</p>
+    </header>
+
+    <main>
+      <section id="screen-upload" class="screen active card">
+        <h2>1. 파일 가져오기</h2>
+        <div id="drop-zone" class="drop-zone">
+          <p>여기에 영상 파일을 드래그 앤 드롭하세요</p>
+          <p class="hint">여러 파일 업로드 가능</p>
+        </div>
+
+        <div class="button-row">
+          <button id="btn-pick-files" class="primary">파일 업로드</button>
+        </div>
+
+        <div id="upload-file-list" class="simple-list empty">아직 선택된 파일이 없습니다.</div>
+      </section>
+
+      <section id="screen-config" class="screen card hidden">
+        <h2>2. 추출 설정</h2>
+
+        <div class="button-row start-row">
+          <button id="btn-back" class="secondary">뒤로 가기</button>
+        </div>
+
+        <div class="config-grid">
+          <div class="config-block">
+            <label for="language-search">추출 언어</label>
+            <input id="language-search" type="text" placeholder="언어 검색" />
+            <select id="language-select" size="10"></select>
+            <p class="hint">표시는 [한국어 / 원어] 형식입니다.</p>
+          </div>
+
+          <div class="config-block">
+            <label class="checkbox-row">
+              <input id="csv-checkbox" type="checkbox" />
+              CSV로 저장 (체크 해제 시 XLSX)
+            </label>
+          </div>
+
+          <div class="config-block">
+            <label>파일 작성 폴더</label>
+            <div class="button-row">
+              <button id="btn-pick-output" class="secondary">폴더 선택</button>
+            </div>
+            <div id="output-folder-label" class="path-label empty">선택된 출력 폴더가 없습니다.</div>
+          </div>
+
+          <div class="config-block">
+            <label>가져온 파일 목록</label>
+            <div id="config-file-list" class="simple-list"></div>
+          </div>
+        </div>
+
+        <div class="button-row footer-row">
+          <button id="btn-start" class="primary">언어 추출 시작</button>
+        </div>
+      </section>
+
+      <section id="screen-progress" class="screen card hidden">
+        <h2>3. 작업 진행</h2>
+        <div class="progress-group">
+          <div class="status-box">
+            <div><strong>현재 파일:</strong> <span id="progress-file-name">-</span></div>
+            <div><strong>상태:</strong> <span id="progress-status">대기 중</span></div>
+          </div>
+          <div>
+            <label for="overall-progress">전체 진행률</label>
+            <progress id="overall-progress" max="100" value="0"></progress>
+            <div id="overall-progress-text" class="progress-text">0%</div>
+          </div>
+          <div>
+            <label for="file-progress">현재 파일 진행률</label>
+            <progress id="file-progress" max="100" value="0"></progress>
+            <div id="file-progress-text" class="progress-text">0%</div>
+          </div>
+          <div id="progress-log" class="log-box"></div>
+        </div>
+      </section>
+
+      <section id="screen-done" class="screen card hidden clickable">
+        <h2>작업 완료</h2>
+        <p id="done-message">작성이 완료되었습니다.</p>
+        <p class="hint">아무 곳이나 누르면 처음 화면으로 돌아갑니다.</p>
+      </section>
+
+      <section class="card info-card">
+        <h2>안내</h2>
+        <ul>
+          <li>이 버전은 브라우저에서 ffmpeg.wasm으로 오디오를 추출하고, Transformers.js로 Whisper 전사를 수행합니다.</li>
+          <li>첫 실행 시 모델과 런타임 다운로드 때문에 시간이 걸릴 수 있습니다.</li>
+          <li>크롬/엣지 계열에서는 출력 폴더 직접 저장이 가능하고, 그 외 브라우저에서는 다운로드 방식으로 저장됩니다.</li>
+          <li>아주 긴 영상이나 대용량 배치 작업은 브라우저 메모리 한계로 느릴 수 있습니다.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
