@@ -5,11 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>영상 음성 타임라인 추출기</title>
   <link rel="stylesheet" href="styles.css" />
-  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js?v=20260326b"></script>
 </head>
 <body>
   <div class="app-shell">
     <header class="app-header">
+      <div class="build-meta" id="build-meta">버전: - / 빌드: -</div>
       <h1>영상 음성 타임라인 추출기</h1>
       <p class="subtext">브라우저에서 영상 파일의 음성을 전사해 CSV 또는 XLSX로 저장합니다.</p>
     </header>
@@ -107,6 +108,9 @@
         </ul>
       </section>
     </main>
+    <footer class="app-footer">
+      <div id="footer-build-meta">버전: - / 빌드: -</div>
+    </footer>
   </div>
 
   <script type="module" src="app.js"></script>

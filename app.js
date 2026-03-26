@@ -1,6 +1,11 @@
+
 import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.0/+esm';
-import { FFmpeg } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js';
-import { fetchFile, toBlobURL } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/esm/index.js';
+import { FFmpeg } from './vendor/ffmpeg/index.js?v=20260326b';
+import { fetchFile } from './vendor/ffmpeg-util/index.js?v=20260326b';
+
+const APP_VERSION = '0.3.0-vendor-ready';
+const APP_BUILD_TIME = '2026-03-26 00:00 UTC';
+const APP_NOTES = 'FFmpeg same-origin 대응 준비판';
 
 const STORAGE_KEYS = {
   language: 'transcript.language',
@@ -55,6 +60,14 @@ const screens = {
   progress: $('screen-progress'),
   done: $('screen-done'),
 };
+
+function renderBuildMeta() {
+  const text = `버전: ${APP_VERSION} / 빌드: ${APP_BUILD_TIME} / ${APP_NOTES}`;
+  const a = $('build-meta');
+  const b = $('footer-build-meta');
+  if (a) a.textContent = text;
+  if (b) b.textContent = text;
+}
 
 function showScreen(name) {
   Object.values(screens).forEach((el) => {
@@ -287,35 +300,37 @@ function formatTimestamp(seconds) {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${String(millis).padStart(3, '0')}`;
 }
 
+
 async function ensureFfmpeg() {
   if (state.ffmpeg) return state.ffmpeg;
 
   setStatus('오디오 추출 엔진 로딩 중');
   log('FFmpeg 엔진 로딩 시작');
+  log(`앱 버전: ${APP_VERSION} / 빌드: ${APP_BUILD_TIME}`);
 
   const ffmpeg = new FFmpeg();
   ffmpeg.on('progress', ({ progress }) => {
     setFileProgress(Math.max(1, Math.min(95, progress * 100)));
   });
 
-  const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm';
-
-  // GitHub Pages 같은 cross-origin 환경에서는 Worker 스크립트를 그대로 넘기면
-  // same-origin 제약에 걸릴 수 있으므로 blob URL로 바꿔서 로드합니다.
-  const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
-  const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
-  const workerURL = await toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, 'text/javascript');
+  // 중요:
+  // GitHub Pages 같은 환경에서는 Worker()가 same-origin 제약을 받습니다.
+  // 따라서 @ffmpeg/ffmpeg 패키지의 worker.js 와 @ffmpeg/core 파일들을
+  // 현재 사이트와 같은 origin에서 직접 서빙해야 합니다.
+  const baseURL = `${location.origin}${location.pathname.replace(/[^/]*$/, '')}vendor/ffmpeg-core`;
 
   await ffmpeg.load({
-    coreURL,
-    wasmURL,
-    workerURL,
+    classWorkerURL: './vendor/ffmpeg/worker.js?v=20260326b',
+    coreURL: `${baseURL}/ffmpeg-core.js?v=20260326b`,
+    wasmURL: `${baseURL}/ffmpeg-core.wasm?v=20260326b`,
+    workerURL: `${baseURL}/ffmpeg-core.worker.js?v=20260326b`,
   });
 
   state.ffmpeg = ffmpeg;
   log('FFmpeg 엔진 로딩 완료');
   return ffmpeg;
 }
+
 
 async function ensureTranscriber() {
   if (state.transcriber) return state.transcriber;
@@ -560,12 +575,17 @@ function bindEvents() {
 }
 
 async function init() {
+  renderBuildMeta();
   loadSimpleSettings();
   const { lang } = loadSimpleSettings();
   renderLanguageOptions('', lang);
   updateFileList('upload-file-list');
   updateFileList('config-file-list');
   bindEvents();
+  const note = document.createElement('div');
+  note.className = 'error-note';
+  note.innerHTML = '중요: 이 버전은 FFmpeg worker same-origin 문제 대응용입니다. <code>vendor</code> 폴더에 FFmpeg 정적 파일을 같이 올려야 실제 동작합니다. 자세한 파일 목록은 README.md를 확인해 주세요.';
+  $('screen-upload').appendChild(note);
   await restoreOutputHandle();
 }
 

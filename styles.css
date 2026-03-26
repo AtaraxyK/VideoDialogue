@@ -132,3 +132,19 @@ progress {
   .app-header h1 { font-size: 24px; }
   .drop-zone { padding: 24px; }
 }
+
+
+.build-meta, .app-footer {
+  color: var(--muted);
+  font-size: 13px;
+}
+.build-meta { margin-bottom: 10px; }
+.app-footer { margin-top: 12px; padding-bottom: 8px; }
+.error-note {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(248,113,113,.4);
+  border-radius: 10px;
+  background: rgba(127,29,29,.2);
+  color: #fecaca;
+}
